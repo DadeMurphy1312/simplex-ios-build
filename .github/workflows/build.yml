@@ -30,6 +30,11 @@ jobs:
         working-directory: src
         run: test "$(git rev-parse HEAD)" = "$SIMPLEX_SHA"
       - uses: cachix/install-nix-action@v32.1.0
+        with:
+          github_access_token: ${{ github.token }}
+          extra_nix_config: |
+            extra-substituters = https://cache.iog.io https://cache.zw3rk.com
+            extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk=
       - name: Build iOS core with upstream Nix recipe
         working-directory: src
         run: |
