@@ -29,21 +29,14 @@ jobs:
       - name: Verify source
         working-directory: src
         run: test "$(git rev-parse HEAD)" = "$SIMPLEX_SHA"
-      - name: Use macOS 26 SDK for core build
-        working-directory: src
-        run: scripts/ci/ios-sim/use-macos26-sdk.sh
-      - uses: simplex-chat/setup-haskell-action@v2
-        with:
-          ghc-version: 9.6.3
-          cabal-version: 3.10.2.0
-      - name: Install core dependencies
-        run: brew install openssl@3 libffi gmp
-      - name: Build and prepare iOS core
+      - uses: cachix/install-nix-action@v32.1.0
+      - name: Build iOS core with upstream Nix recipe
         working-directory: src
         run: |
           set -euo pipefail
-          scripts/ci/ios-sim/build-core.sh ~/Downloads/pkg-ios-aarch64-swift-json.zip
-          scripts/ci/ios-sim/prepare-libs.sh
+          nix build '.#aarch64-darwin-ios:lib:simplex-chat' --print-build-logs
+          mkdir -p apps/ios/Libraries/ios
+          unzip -o result/pkg-ios-aarch64-swift-json.zip -d apps/ios/Libraries/ios
           scripts/ios/update-pbxproj.sh
       - name: Build iPhone app
         working-directory: src
