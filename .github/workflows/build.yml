@@ -8,10 +8,10 @@ permissions:
 
 jobs:
   ipa:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 360
     env:
-      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
       SIMPLEX_SHA: 62ea5dc4afb73a0256ba0088f0ae85be750afc99
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
