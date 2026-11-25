@@ -1,0 +1,80 @@
+name: build SimpleX iOS IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 360
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+      SIMPLEX_SHA: 62ea5dc4afb73a0256ba0088f0ae85be750afc99
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: recipe
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: simplex-chat/simplex-chat
+          ref: 62ea5dc4afb73a0256ba0088f0ae85be750afc99
+          path: src
+          persist-credentials: false
+      - name: Verify source
+        working-directory: src
+        run: test "$(git rev-parse HEAD)" = "$SIMPLEX_SHA"
+      - name: Use macOS 26 SDK for core build
+        working-directory: src
+        run: scripts/ci/ios-sim/use-macos26-sdk.sh
+      - uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: 9.6.3
+          cabal-version: 3.10.2.0
+      - name: Install core dependencies
+        run: brew install openssl@3 libffi gmp
+      - name: Build and prepare iOS core
+        working-directory: src
+        run: |
+          set -euo pipefail
+          scripts/ci/ios-sim/build-core.sh ~/Downloads/pkg-ios-aarch64-swift-json.zip
+          scripts/ci/ios-sim/prepare-libs.sh
+          scripts/ios/update-pbxproj.sh
+      - name: Build iPhone app
+        working-directory: src
+        run: |
+          set -o pipefail
+          xcodebuild build -quiet \
+            -project apps/ios/SimpleX.xcodeproj \
+            -scheme 'SimpleX (iOS)' \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER=
+      - name: Sign and package IPA
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/SimpleX.app"
+          test -d "$app"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$app/Info.plist"
+          lipo -archs "$app/SimpleX"
+          python3 recipe/package.py "$app" "$RUNNER_TEMP/out"
+          shasum -a 256 "$RUNNER_TEMP/out/SimpleX-v7.1.4.ipa" | tee "$RUNNER_TEMP/out/SHA256"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: simplex-ios-ipa
+          path: |
+            ${{ runner.temp }}/out/SimpleX-v7.1.4.ipa
+            ${{ runner.temp }}/out/SHA256
+          retention-days: 7
